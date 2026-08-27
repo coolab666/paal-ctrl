@@ -88,23 +88,24 @@ jobs:
           # DOCKERUSER=$(curl -s $URL/DOCKERUSER) && echo "DOCKERUSER=$DOCKERUSER" >> $GITHUB_ENV &   
   
           # DOCKERPASS=$(curl -s $URL/DOCKERPASS) && echo "DOCKERPASS=$DOCKERPASS" >> $GITHUB_ENV &     
-    
+  
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         id: login_docker
         continue-on-error: true
         with:
-          username: $DOCKERUSER
-          password: $DOCKERPASS
+          username: ${{ env.DOCKERUSER }}
+          password: ${{ env.DOCKERPASS }}
           
       - name: Log in to Docker Hub --Retry
         if: steps.login_docker.outcome == 'failure'
         uses: docker/login-action@v3
         continue-on-error: true
         with:
-          username: $DOCKERUSER
-          password: $DOCKERPASS
+          username: ${{ env.DOCKERUSER }}
+          password: ${{ env.DOCKERPASS }}
 
+  
       # 【优化 1】合规化清理空间，去除易触发滥用规则的目录删除特征
       - name: Cleanup Disk Space
         continue-on-error: true
@@ -122,7 +123,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: $SYNCTOKEN
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       # - name: Check and Sync Repository
       #   run: |
@@ -523,56 +524,105 @@ jobs:
         continue-on-error: true
         run: |
           if [ ! -d "/opt/1panel/apps" ]; then
+            echo "⚠️ 未找到 /opt/1panel/apps 目录，跳过自动扫描。"
             exit 0
           fi
 
+          # 定义单应用启动函数（带超时机制）
           start_app() {
             local app_dir="$1"
             local app_name=$(basename "$app_dir")
             
             if [ -f "$app_dir/docker-compose.yml" ]; then
+              echo "🚀 [启动中] $app_name ..."
               timeout 120s bash -c "cd '$app_dir' && sudo docker compose up -d > log.txt 2>&1"
+              
+              if [ $? -eq 0 ]; then
+                echo "✅ [完成] $app_name"
+              else
+                echo "⚠️ [超时/失败] $app_name，请检查 log.txt"
+              fi
             fi
           }
+
           export -f start_app
+
+          # 1. 使用 xargs 实现多任务并行启动（-P 4）
           find /opt/1panel/apps -maxdepth 1 -mindepth 1 -type d | xargs -I {} -P 4 bash -c 'start_app "$@"' _ {}
 
+          echo "=================================================="
+          echo "⚠️ 检查失败应用、针对性重试并发送告警..."
+          echo "=================================================="
+
+          # 2. 检查未运行应用并重试告警
           for app_dir in /opt/1panel/apps/*; do
             if [ -d "$app_dir" ] && [ -f "$app_dir/docker-compose.yml" ]; then
               app_name=$(basename "$app_dir")
+              
+              # 修正1：正确使用 --filter "status=running"
               running_containers=$(cd "$app_dir" && sudo docker compose ps -q --filter "status=running" 2>/dev/null || true)
               
               if [ -z "$running_containers" ]; then
+                echo "🔄 [重试] $app_name ..."
+                
+                # 重试拉起
                 timeout 180s bash -c "cd '$app_dir' && sudo docker compose up -d >> log.txt 2>&1" || true
+                
+                # 再次检查状态
                 retry_check=$(cd "$app_dir" && sudo docker compose ps -q --filter "status=running" 2>/dev/null || true)
                 if [ -z "$retry_check" ]; then
+                  echo "❌ [最终失败] $app_name，正在发送邮件告警..."
+                  # 修正2：使用 $GITHUB_REPOSITORY 规范获取仓库名
                   sudo bash /opt/1panel/a.sh $(cat /r2/back/ul.txt) "$EPASS" $(cat /r2/back/to.txt) "❌【应用】$app_name 启动失败！请检查 YML 配置。${GITHUB_REPOSITORY:-mksha8721/abb}" || true
+                else
+                  echo "✅ [重试成功] $app_name"
                 fi
               fi
             fi
           done
 
-      - name: Auto Discover and Install 1Panel Apps - Retry
+      - name: Auto Discover and Install 1Pan Apps - Retry
         if: steps.step_auto_apps.outcome == 'failure'
         id: step_auto_apps_retry
         continue-on-error: true
         run: |
           for app_dir in /opt/1panel/apps/*; do
             if [ -d "$app_dir" ] && [ -f "$app_dir/docker-compose.yml" ]; then
+              echo "🔄 [重试] 正在拉起目录下的容器: $app_dir"
               app_name=$(basename "$app_dir")
+              
               cd "$app_dir"
+              
+              #docker compose up -d > log.txt 2>&1 || true
+              
               sudo bash -c 'docker compose up -d > log.txt 2>&1'
               
               if grep -qiE "Running" log.txt; then
+              
                 if grep -qiE "Error|failed" log.txt; then
-                  sudo bash /opt/1panel/a.sh $(cat /r2/back/ul.txt) $EPASS $(cat /r2/back/to.txt) "$(echo "❌【应用】$app_name 启动失败！请检查 YML 配置。${{ github.repository }}")"
+                
+                    echo "❌$app_name 启动失败" 
+                
+                    sudo bash /opt/1panel/a.sh $(cat /r2/back/ul.txt) $EPASS $(cat /r2/back/to.txt) "$(echo "❌【应用】$app_name 启动失败！请检查 YML 配置。${{ github.repository }}")"
+
+                else
+                
+                    echo "✅$app_name 启动成功" 
+                
                 fi
+              
               else 
+              
+                echo "❌$app_name 启动失败" 
+                
                 sudo bash /opt/1panel/a.sh $(cat /r2/back/ul.txt) $EPASS $(cat /r2/back/to.txt) "$(echo "❌【应用】$app_name 启动失败！请检查 YML 配置。${{ github.repository }}")"
+
+
               fi
+              
             fi
           done
-
+          
       - name: Retart All Job
         if: steps.step_auto_apps_retry.outcome == 'failure'
         run: |
