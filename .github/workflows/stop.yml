@@ -1,4 +1,4 @@
-name: 每天定时停止指定任务
+name: 停止
 permissions:
   actions: write # 必须赋予 actions 写入权限，才能执行 cancel 操作
 on:
