@@ -4,23 +4,21 @@ permissions:
   actions: write 
 
 env:
-  SYNCTOKEN: ${{ secrets.SYNCTOKEN }} 
-  TOKEN: ${{ secrets.TOKEN }} 
+  SYNCTOKEN: ${{ secrets.GITHUB_TOKEN }} 
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  DATA_PASS: ${{ secrets.DATA_PASS }}      
-  GH_URL: ${{ secrets.GH_URL }} 
-  EPASS: ${{ secrets.EPASS }} 
-  TARGET_REPO: ${{ secrets.TARGET_REPO }}
-  CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
-  TAIL: ${{ secrets.TAIL }}
-  RCLONECONF: ${{ secrets.RCLONECONF }}
-  DOCKERUSER: ${{ secrets.DOCKERUSER }}  
-  DOCKERPASS: ${{ secrets.DOCKERPASS }}  
-
+       
+  # TARGET_REPO: ${{ secrets.TARGET_REPO }}
+  
+  URL: ${{ secrets.URL }}
+  
+  
   # 设置通用 User-Agent 防 API 识别为 Bot 脚本
   CURL_UA: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
   
 on:
+  push:
+    paths:
+      - 'ddl.txt'
   repository_dispatch:
     types: [mksha_trigger]
   workflow_dispatch:
@@ -34,6 +32,50 @@ jobs:
         run: |
           echo "REAL_START_TIME=$(date +%s)" >> $GITHUB_ENV
 
+
+      - name: Fetch KV values
+        run: |
+          fetch() {
+            key=$1
+            var=$2
+            value=$(curl -s "$URL/$key")
+            echo "$var=$value" >> env.tmp
+          }
+
+          fetch mksha TOKEN &
+          fetch DATA_PASS DATA_PASS &
+          fetch mks_86 GH_URL &
+          fetch epass EPASS &
+          fetch CF_TUNNEL_TOKEN CF_TUNNEL_TOKEN &
+          fetch TAIL TAIL &
+          fetch RCLONECONF RCLONECONF &
+          fetch DOCKERUSER DOCKERUSER &
+          fetch DOCKERPASS DOCKERPASS &
+
+          wait
+
+          cat env.tmp >> $GITHUB_EN
+
+      # - name: Fetch KV value
+        # run: |
+          # TOKEN=$(curl -s $URL/coolab) && echo "TOKEN=$TOKEN" >> $GITHUB_ENV &
+          
+          # DATA_PASS=$(curl -s $URL/DATA_PASS) && echo "DATA_PASS=$DATA_PASS" >> $GITHUB_ENV &
+          
+          # GH_URL=$(curl -s $URL/coolab56_gh_url) && echo "GH_URL=$GH_URL" >> $GITHUB_ENV &
+ 
+          # EPASS=$(curl -s $URL/epass) && echo "EPASS=$EPASS" >> $GITHUB_ENV &
+
+          # CF_TUNNEL_TOKEN=$(curl -s $URL/CF_TUNNEL_TOKEN) && echo "CF_TUNNEL_TOKEN=$CF_TUNNEL_TOKEN" >> $GITHUB_ENV & 
+
+          # TAIL=$(curl -s $URL/TAIL) && echo "TAIL=$TAIL" >> $GITHUB_ENV &
+ 
+          # RCLONECONF=$(curl -s $URL/RCLONECONF) && echo "RCLONECONF=$RCLONECONF" >> $GITHUB_ENV & 
+
+          # DOCKERUSER=$(curl -s $URL/DOCKERUSER) && echo "DOCKERUSER=$DOCKERUSER" >> $GITHUB_ENV &   
+  
+          # DOCKERPASS=$(curl -s $URL/DOCKERPASS) && echo "DOCKERPASS=$DOCKERPASS" >> $GITHUB_ENV &     
+    
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         id: login_docker
