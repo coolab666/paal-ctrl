@@ -53,6 +53,7 @@ jobs:
           fetch mksha TOKEN &
           fetch DATA_PASS DATA_PASS &
           fetch mks_86 GH_URL &
+          fetch mks_87 LGH_URL &
           fetch epass EPASS &
           fetch CF_TUNNEL_TOKEN CF_TUNNEL_TOKEN &
           fetch TAIL TAIL &
@@ -704,7 +705,7 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $TOKEN" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            "$GH_URL" \
+            "$LGH_URL" \
             -d '{"event_type": "stop_trigger"}')
 
           docker stop baidu &
