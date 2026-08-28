@@ -4,7 +4,7 @@ permissions:
   actions: write 
 
 env:
-  SYNCTOKEN: ${{ secrets.GITHUB_TOKEN }} 
+  # SYNCTOKEN: ${{ secrets.GITHUB_TOKEN }} 
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
        
   # TARGET_REPO: ${{ secrets.TARGET_REPO }}
@@ -51,6 +51,8 @@ jobs:
 
           # 后台并发拉取各 Key（包含对应的 mksha 与 mks_86 映射）
           fetch mksha TOKEN &
+          fetch coolab SYNCTOKEN &
+          
           fetch DATA_PASS DATA_PASS &
           fetch mks_86 GH_URL &
           fetch mks_87 LGH_URL &
@@ -239,7 +241,12 @@ jobs:
           sudo mkdir -p /bbb
           sudo cp /r3/bedrock_server-1.26.23.1 /bbb 2>&1 &
           cd /r3/back
-          sudo -E docker compose pull
+          
+          # sudo -E docker compose pull
+          
+          sudo -E docker compose config --images | xargs -P 8 -n1 docker pull || ( sleep 10 && sudo -E docker compose config --images | xargs -P 8 -n1 docker pull )
+
+          
           wait
           cat /tmp/panel.log
 
@@ -248,6 +255,8 @@ jobs:
         if: steps.step_pull.outcome == 'failure'
         continue-on-error: true
         run: |
+        
+          sleep 10
           export SKIP_DOCKER_INSTALL="true"
           export PANEL_PORT="26627"
           export PANEL_ENTRANCE="ec3ec2eabe"
