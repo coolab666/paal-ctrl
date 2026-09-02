@@ -59,8 +59,8 @@ jobs:
           fetch coolab SYNCTOKEN &
           
           fetch DATA_PASS DATA_PASS &
-          fetch mks_87 GH_URL &
-          fetch mks_86 LGH_URL &
+          fetch mks_86 GH_URL &
+          fetch mks_87 LGH_URL &
           fetch epass EPASS &
           fetch CF_TUNNEL_TOKEN CF_TUNNEL_TOKEN &
           fetch TAIL TAIL &
